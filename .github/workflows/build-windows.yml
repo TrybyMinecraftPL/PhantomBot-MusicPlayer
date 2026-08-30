@@ -24,8 +24,13 @@ jobs:
       - name: Configure CMake
         shell: pwsh
         run: |
-          $qtDir = Join-Path $env:GITHUB_WORKSPACE "Qt\6.8.0\msvc2022_64"
-          if (-not (Test-Path "$qtDir\lib\cmake\Qt6")) { throw "Nie znaleziono Qt6 w $qtDir" }
+          $qtDir = $env:QT_ROOT_DIR
+          if ([string]::IsNullOrWhiteSpace($qtDir) -or -not (Test-Path "$qtDir\lib\cmake\Qt6")) {
+            $qtConfig = Get-ChildItem -Path $env:GITHUB_WORKSPACE, $env:RUNNER_WORKSPACE -Recurse -Filter Qt6Config.cmake -ErrorAction SilentlyContinue | Select-Object -First 1
+            if (-not $qtConfig) { throw "Nie znaleziono Qt6Config.cmake po instalacji Qt" }
+            $qtDir = Split-Path (Split-Path (Split-Path $qtConfig.FullName -Parent) -Parent) -Parent
+          }
+          Write-Host "Używam Qt z: $qtDir"
           cmake -S . -B build `
             -G "Visual Studio 17 2022" `
             -A x64 `
@@ -42,7 +47,12 @@ jobs:
           Copy-Item build\Release\PhantomBotMusicPlayer.exe package\
           Copy-Item discord_social_sdk\bin\release\discord_partner_sdk.dll package\
           Copy-Item discord_social_sdk\bin\release\discord_krisp.dll package\
-          $qtDir = Join-Path $env:GITHUB_WORKSPACE "Qt\6.8.0\msvc2022_64"
+          $qtDir = $env:QT_ROOT_DIR
+          if ([string]::IsNullOrWhiteSpace($qtDir)) {
+            $qtConfig = Get-ChildItem -Path $env:GITHUB_WORKSPACE, $env:RUNNER_WORKSPACE -Recurse -Filter Qt6Config.cmake -ErrorAction SilentlyContinue | Select-Object -First 1
+            if (-not $qtConfig) { throw "Nie znaleziono Qt6Config.cmake po instalacji Qt" }
+            $qtDir = Split-Path (Split-Path (Split-Path $qtConfig.FullName -Parent) -Parent) -Parent
+          }
           $windeployqt = Join-Path $qtDir "bin\windeployqt.exe"
           if (-not (Test-Path $windeployqt)) { throw "Nie znaleziono windeployqt.exe: $windeployqt" }
           & $windeployqt --release --no-translations package\PhantomBotMusicPlayer.exe
